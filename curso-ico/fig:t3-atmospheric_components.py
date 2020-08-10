@@ -295,7 +295,7 @@ for model in modelos.keys():
         # Ocean surface
         s.sea.wind = 0
         # Maritime Shettle and Fenn model
-        s.aer.SetModel(model=model, sfmodel=3, rh=90)
+        s.aer.SetModel(model=2, sfmodel=model, rh=90)
         s.aer.aotref = 0.1
         # Relative azymuth angle
         s.view.phi = phi
@@ -312,13 +312,21 @@ for model in modelos.keys():
         rho_aer_tmp = np.append(rho_aer_tmp, rho_tmp)
     rho_aer[model] = rho_aer_tmp
 
-plt.plot([],[],'k', label="$\tau_a(550) = 0.1$")
-plt.plot([],[],'k-.', label="$\tau_a(550) = 0.2$")
 for model in rho_aer.keys():
     plt.plot(wl, rho_aer[model], label=modelos[model])
 
+#ax2 = ax1.twinx() 
+#ax2.plot(wl, T, "k", alpha=0.5)
+plt.xlabel(r"Longitud de onda [\si{\nano\meter}]")
+plt.ylabel(r"$\rho$")
+plt.legend()
+plt.tight_layout()
+plt.savefig(f"curso-ico/figs/fig:t3-aerosol.pdf", bbox_inches='tight')
+plt.savefig(f"curso-ico/figs/fig:t3-aerosol.png", dpi=300,bbox_inches='tight')
+plt.close()
+
 rho_aer = {}
-for model in modelos.keys():
+for tau in [0.05,0.1,0.15,0.20]:
     rho_aer_tmp = np.array([])
     for wa in tqdm(wl):
         s = pyOSOAA.OSOAA(logfile="/tmp/osoaa_ufm.log")
@@ -327,8 +335,8 @@ for model in modelos.keys():
         # Ocean surface
         s.sea.wind = 0
         # Maritime Shettle and Fenn model
-        s.aer.SetModel(model=model, sfmodel=3, rh=90)
-        s.aer.aotref = 0.2
+        s.aer.SetModel(model=2, sfmodel=3, rh=90)
+        s.aer.aotref = tau
         # Relative azymuth angle
         s.view.phi = phi
         # Sun geometry
@@ -342,11 +350,12 @@ for model in modelos.keys():
         s.run()
         rho_tmp = np.interp(view, s.outputs.vsvza.vza, s.outputs.vsvza.I)/np.cos(sun*np.pi/180)
         rho_aer_tmp = np.append(rho_aer_tmp, rho_tmp)
-    rho_aer[model] = rho_aer_tmp
+    rho_aer[tau] = rho_aer_tmp
 
-plt.gca().set_prop_cycle(None)
-for model in rho_aer.keys():
-    plt.plot(wl, rho_aer[model],"-.")
+plt.plot([],[],'k', label="$\tau_a(550) = 0.1$")
+plt.plot([],[],'k-.', label="$\tau_a(550) = 0.2$")
+for tau in rho_aer.keys():
+    plt.plot(wl, rho_aer[tau], label=r"$\tau_a=$"+f"{tau}")
 
 #ax2 = ax1.twinx() 
 #ax2.plot(wl, T, "k", alpha=0.5)
@@ -354,6 +363,71 @@ plt.xlabel(r"Longitud de onda [\si{\nano\meter}]")
 plt.ylabel(r"$\rho$")
 plt.legend()
 plt.tight_layout()
-plt.savefig(f"curso-ico/figs/fig:t3-aerosol.pdf", bbox_inches='tight')
-plt.savefig(f"curso-ico/figs/fig:t3-aerosol.png", dpi=300,bbox_inches='tight')
+plt.savefig(f"curso-ico/figs/fig:t3-aerosol-tau.pdf", bbox_inches='tight')
+plt.savefig(f"curso-ico/figs/fig:t3-aerosol-tau.png", dpi=300,bbox_inches='tight')
+plt.close()
+
+
+tau_aer = {}
+tau_ray = np.array([])
+for model in modelos.keys():
+    tau_aer_tmp = np.array([])
+    for wa in tqdm(wl):
+        s = pyOSOAA.OSOAA(logfile="/tmp/osoaa_ufm.log")
+        # We configure a black ocean
+        s = pyOSOAA.osoaahelpers.ConfigureOcean(s, ocean_type="black")
+        # Ocean surface
+        s.sea.wind = 0
+        # Maritime Shettle and Fenn model
+        s.aer.SetModel(model=2, sfmodel=model, rh=90)
+        s.aer.aotref = 0.1
+        # Relative azymuth angle
+        s.view.phi = phi
+        # Sun geometry
+        s.ang.thetas = sun
+        # We set the ap to zero
+        s.view.level = 1
+        s.ap.SetMot(0)
+
+        # We run simulation
+        s.wa = wa/1e3
+        s.run()
+        tau_aer_tmp = np.append(tau_aer_tmp, s.outputs.profileatm.tau[-1])
+        
+    tau_aer[model] = tau_aer_tmp
+wlray = np.arange(400,1600,20)
+for wa in tqdm(wlray):
+    s = pyOSOAA.OSOAA(logfile="/tmp/osoaa_ufm.log")
+    # We configure a black ocean
+    s = pyOSOAA.osoaahelpers.ConfigureOcean(s, ocean_type="black")
+    # Ocean surface
+    s.sea.wind = 0
+    # Maritime Shettle and Fenn model
+    s.aer.SetModel(model=2, sfmodel=model, rh=90)
+    s.aer.aotref = 0
+    # Relative azymuth angle
+    s.view.phi = phi
+    # Sun geometry
+    s.ang.thetas = sun
+    # We set the ap to zero
+    s.view.level = 1
+
+    # We run simulation
+    s.wa = wa/1e3
+    s.run()
+    tau_ray = np.append(tau_ray, s.outputs.profileatm.tau[-1])
+
+plt.plot(wlray, tau_ray, 'k',label="Rayleigh")
+
+for model in tau_aer.keys():
+    plt.plot(wl, tau_aer[model], label=modelos[model])
+
+#ax2 = ax1.twinx() 
+#ax2.plot(wl, T, "k", alpha=0.5)
+plt.xlabel(r"Longitud de onda [\si{\nano\meter}]")
+plt.ylabel(r"$\tau$")
+plt.legend()
+plt.tight_layout()
+plt.savefig(f"curso-ico/figs/fig:t3-tau.pdf", bbox_inches='tight')
+plt.savefig(f"curso-ico/figs/fig:t3-tau.png", dpi=300,bbox_inches='tight')
 plt.close()
